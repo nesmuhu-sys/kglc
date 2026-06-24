@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1d4ed8;
+}
+
+body {
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.mobile-container {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+  min-height: 100vh;
+}
+
+/* Bottom navigation */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-around;
+  padding: 0.5rem 0 1rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  z-index: 50;
+}
+
+.bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  color: #6b7280;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  transition: color 0.2s;
+}
+
+.bottom-nav button.active {
+  color: #2563eb;
+}
+
+.bottom-nav button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}

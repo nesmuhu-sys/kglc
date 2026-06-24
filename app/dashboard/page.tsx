@@ -11,6 +11,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 type Tab = 'home' | 'tasks' | 'earnings' | 'referrals' | 'account'
 type Language = 'rw' | 'en'
 
+// Translations
 const t = {
   rw: {
     home: 'Ahabanza',
@@ -69,7 +70,25 @@ const t = {
     brandLogos: 'Ibikorwa',
     tasksList: 'Urutonde rw\'imirimo',
     goToTasks: 'Jya ku mirimo',
-    youHave: 'Ufite'
+    youHave: 'Ufite',
+    depositTitle: 'Shyira Amafaranga',
+    withdrawTitle: 'Kura Amafaranga',
+    amount: 'Amafaranga',
+    fullName: 'Izina Ryose',
+    phoneNumber: 'Numero ya Telefone',
+    feeInfo: '5% y\'igiciro',
+    timeLimit: 'Igihe: iminota 2',
+    minimumDeposit: 'Nibura 1,000 RWF',
+    paymentMethod: 'Uburyo bwo kwishyura',
+    mobileMoney: 'Mobile Money',
+    bankTransfer: 'Kwishyura kuri Banki',
+    submit: 'Ohereza',
+    cancelling: 'Hagarika',
+    depositSuccess: 'Kwohereza byagenze neza!',
+    withdrawalSuccess: 'Kura byagenze neza!',
+    approveWait: 'Tegereza gushyirwa mu bikorwa',
+    fee: 'Ikiguzi',
+    netAmount: 'Amafaranga azaboneka',
   },
   en: {
     home: 'Home',
@@ -128,7 +147,25 @@ const t = {
     brandLogos: 'Brands',
     tasksList: 'Task List',
     goToTasks: 'Go to Tasks',
-    youHave: 'You have'
+    youHave: 'You have',
+    depositTitle: 'Deposit Funds',
+    withdrawTitle: 'Withdraw Funds',
+    amount: 'Amount',
+    fullName: 'Full Name',
+    phoneNumber: 'Phone Number',
+    feeInfo: '5% fee applies',
+    timeLimit: 'Time limit: 2 minutes',
+    minimumDeposit: 'Minimum 1,000 RWF',
+    paymentMethod: 'Payment Method',
+    mobileMoney: 'Mobile Money',
+    bankTransfer: 'Bank Transfer',
+    submit: 'Submit',
+    cancelling: 'Cancel',
+    depositSuccess: 'Deposit submitted!',
+    withdrawalSuccess: 'Withdrawal submitted!',
+    approveWait: 'Awaiting admin approval',
+    fee: 'Fee',
+    netAmount: 'Net Amount',
   }
 }
 
@@ -201,11 +238,30 @@ export default function Dashboard() {
   const [availableApps, setAvailableApps] = useState(ALL_APPS)
   const [spinsAvailable, setSpinsAvailable] = useState(0)
   const [referralsData, setReferralsData] = useState({ total: 0, active: 0, inactive: 0, direct: 0, indirect: 0 })
+  
+  // Task popup state
   const [showTaskPopup, setShowTaskPopup] = useState(false)
   const [currentTask, setCurrentTask] = useState<any>(null)
   const [taskStep, setTaskStep] = useState<'select' | 'install' | 'test' | 'done'>('select')
   const [isProcessing, setIsProcessing] = useState(false)
   const [taskError, setTaskError] = useState('')
+  
+  // Deposit/Withdraw modals
+  const [showDepositModal, setShowDepositModal] = useState(false)
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [depositAmount, setDepositAmount] = useState('')
+  const [depositName, setDepositName] = useState('')
+  const [depositPhone, setDepositPhone] = useState('')
+  const [depositLoading, setDepositLoading] = useState(false)
+  const [depositError, setDepositError] = useState('')
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawName, setWithdrawName] = useState('')
+  const [withdrawPhone, setWithdrawPhone] = useState('')
+  const [withdrawMethod, setWithdrawMethod] = useState('mobile_money')
+  const [withdrawLoading, setWithdrawLoading] = useState(false)
+  const [withdrawError, setWithdrawError] = useState('')
+
+  // Other UI state
   const [copied, setCopied] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [confettiType, setConfettiType] = useState('')
@@ -222,6 +278,7 @@ export default function Dashboard() {
 
   const text = t[lang]
 
+  // Refresh data
   const refreshData = useCallback(async () => {
     const token = localStorage.getItem('token')
     if (!token) return
@@ -259,12 +316,14 @@ export default function Dashboard() {
     }
   }, [])
 
+  // Initial load
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) { router.push('/'); return }
     refreshData().finally(() => setLoading(false))
   }, [refreshData, router])
 
+  // Filter apps based on level
   useEffect(() => {
     if (level > 0) {
       setAvailableApps(ALL_APPS.filter(app => app.level <= level))
@@ -273,6 +332,7 @@ export default function Dashboard() {
     }
   }, [level])
 
+  // Spin wheel effect
   useEffect(() => {
     if (showSpinModal && canvasRef.current) drawWheel()
   }, [showSpinModal])
@@ -390,6 +450,7 @@ export default function Dashboard() {
     router.push('/')
   }
 
+  // Task functions
   const getRandomTask = () => {
     if (tasksRemaining <= 0) return null
     const filtered = availableApps.filter(app => app.level <= level)
@@ -483,12 +544,14 @@ export default function Dashboard() {
     }
   }
 
+  // Copy handler
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Buy level
   const handleBuyLevel = async (levelNumber) => {
     setBuyError('')
     const level = levels.find(l => l.level === levelNumber)
@@ -529,6 +592,121 @@ export default function Dashboard() {
     }
   }
 
+  // Deposit handlers
+  const handleDeposit = async () => {
+    setDepositError('')
+    setDepositLoading(true)
+
+    const amount = parseFloat(depositAmount)
+    if (isNaN(amount) || amount < 1000) {
+      setDepositError('Minimum deposit is 1,000 RWF')
+      setDepositLoading(false)
+      return
+    }
+
+    if (!depositName.trim()) {
+      setDepositError('Please enter your full name')
+      setDepositLoading(false)
+      return
+    }
+
+    if (!/^07\d{8}$/.test(depositPhone)) {
+      setDepositError('Invalid phone number. Use 0788123456 format')
+      setDepositLoading(false)
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: amount,
+          name: depositName,
+          phone: depositPhone,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Deposit failed')
+      }
+
+      // Redirect to RwandaPay payment page
+      window.location.href = data.data.payment_url
+    } catch (error: any) {
+      setDepositError(error.message)
+      setDepositLoading(false)
+    }
+  }
+
+  // Withdraw handlers
+  const handleWithdraw = async () => {
+    setWithdrawError('')
+    setWithdrawLoading(true)
+
+    const amount = parseFloat(withdrawAmount)
+    if (isNaN(amount) || amount < 1000) {
+      setWithdrawError('Minimum withdrawal is 1,000 RWF')
+      setWithdrawLoading(false)
+      return
+    }
+
+    if (amount > balance) {
+      setWithdrawError(`Insufficient balance. Available: ${balance} RWF`)
+      setWithdrawLoading(false)
+      return
+    }
+
+    if (!withdrawName.trim()) {
+      setWithdrawError('Please enter your full name')
+      setWithdrawLoading(false)
+      return
+    }
+
+    if (!/^07\d{8}$/.test(withdrawPhone)) {
+      setWithdrawError('Invalid phone number. Use 0788123456 format')
+      setWithdrawLoading(false)
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: amount,
+          name: withdrawName,
+          phone: withdrawPhone,
+          paymentMethod: withdrawMethod,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Withdrawal failed')
+      }
+
+      alert('Withdrawal request submitted! Awaiting admin approval.')
+      setShowWithdrawModal(false)
+      setWithdrawAmount('')
+      setWithdrawName('')
+      setWithdrawPhone('')
+      refreshData()
+    } catch (error: any) {
+      setWithdrawError(error.message)
+      setWithdrawLoading(false)
+    }
+  }
+
   const tabs = [
     { id: 'home', icon: Home, label: text.home },
     { id: 'tasks', icon: Trophy, label: text.tasks },
@@ -541,6 +719,7 @@ export default function Dashboard() {
     return <div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
   }
 
+  // Marquee component
   const MarqueeBrands = () => (
     <div className="overflow-hidden whitespace-nowrap py-2">
       <div className="inline-block animate-marquee">
@@ -558,6 +737,7 @@ export default function Dashboard() {
     </div>
   )
 
+  // Home tab
   const renderHomeTab = () => (
     <>
       <div className="bg-white rounded-2xl shadow-sm p-2 mb-4 border border-gray-100">
@@ -615,6 +795,7 @@ export default function Dashboard() {
     </>
   )
 
+  // Confetti overlay
   const renderConfetti = () => {
     if (!showConfetti) return null
     const emojis = confettiType === 'cash' ? ['💰','💎','✨','🎉'] : confettiType === 'prize' ? ['🏆','🎊','⭐','🌈'] : confettiType === 'levelup' ? ['🚀','⭐','🌟','💪'] : ['🎉','✨','🎊','🌟']
@@ -707,7 +888,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Earnings Tab */}
         {activeTab === 'earnings' && (
           <div>
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 mb-4">
@@ -718,8 +898,8 @@ export default function Dashboard() {
                 <div className="bg-red-50 rounded-xl p-3"><p className="text-xs text-gray-500">{text.totalWithdrawn}</p><p className="text-lg font-bold text-red-700">{totalWithdrawn.toLocaleString()} RWF</p></div>
               </div>
               <div className="flex gap-3 mt-4">
-                <button className="flex-1 bg-blue-600 text-white rounded-xl py-3 font-medium hover:bg-blue-700 transition">{text.deposit}</button>
-                <button className="flex-1 bg-green-600 text-white rounded-xl py-3 font-medium hover:bg-green-700 transition">{text.withdraw}</button>
+                <button onClick={() => setShowDepositModal(true)} className="flex-1 bg-blue-600 text-white rounded-xl py-3 font-medium hover:bg-blue-700 transition">{text.deposit}</button>
+                <button onClick={() => setShowWithdrawModal(true)} className="flex-1 bg-green-600 text-white rounded-xl py-3 font-medium hover:bg-green-700 transition">{text.withdraw}</button>
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
@@ -731,7 +911,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Referrals Tab */}
         {activeTab === 'referrals' && (
           <div>
             <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100 mb-4">
@@ -765,7 +944,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Account Tab */}
         {activeTab === 'account' && (
           <div>
             <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100 mb-4">
@@ -905,6 +1083,164 @@ export default function Dashboard() {
             )}
             <button onClick={spinWheel} disabled={spinning || spinsAvailable <= 0} className="w-full mt-4 bg-orange-500 text-white rounded-xl py-3 font-medium hover:bg-orange-600 transition disabled:opacity-50">{spinning ? text.spinning : text.spinButton}</button>
             <p className="text-xs text-gray-400 text-center mt-2">{text.spins}: {spinsAvailable}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Modal */}
+      {showDepositModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">{text.depositTitle}</h2>
+              <button onClick={() => setShowDepositModal(false)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
+              <p>💰 {text.feeInfo}: 5%</p>
+              <p>⏱️ {text.timeLimit}</p>
+              <p>{text.minimumDeposit}</p>
+            </div>
+
+            {depositError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> {depositError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.amount} (RWF)</label>
+                <input
+                  type="number"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  placeholder="1000 minimum"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  min="1000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.fullName}</label>
+                <input
+                  type="text"
+                  value={depositName}
+                  onChange={(e) => setDepositName(e.target.value)}
+                  placeholder="Your full name"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.phoneNumber}</label>
+                <input
+                  type="tel"
+                  value={depositPhone}
+                  onChange={(e) => setDepositPhone(e.target.value)}
+                  placeholder="0788123456"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">MTN or Airtel Money number</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDeposit}
+              disabled={depositLoading}
+              className="w-full mt-4 py-3.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {depositLoading ? (
+                <>
+                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {text.processing}
+                </>
+              ) : (
+                text.deposit
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">{text.withdrawTitle}</h2>
+              <button onClick={() => setShowWithdrawModal(false)} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+            </div>
+
+            <div className="mb-4 p-3 bg-green-50 rounded-xl text-sm text-green-700">
+              <p>💰 {text.feeInfo}: 5%</p>
+              <p>⏱️ {text.approveWait}</p>
+              <p>{text.minimumDeposit}</p>
+            </div>
+
+            {withdrawError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> {withdrawError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.amount} (RWF)</label>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder="1000 minimum"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  min="1000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.fullName}</label>
+                <input
+                  type="text"
+                  value={withdrawName}
+                  onChange={(e) => setWithdrawName(e.target.value)}
+                  placeholder="Your full name"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.phoneNumber}</label>
+                <input
+                  type="tel"
+                  value={withdrawPhone}
+                  onChange={(e) => setWithdrawPhone(e.target.value)}
+                  placeholder="0788123456"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text.paymentMethod}</label>
+                <select
+                  value={withdrawMethod}
+                  onChange={(e) => setWithdrawMethod(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                  <option value="mobile_money">{text.mobileMoney}</option>
+                  <option value="bank_transfer">{text.bankTransfer}</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleWithdraw}
+              disabled={withdrawLoading}
+              className="w-full mt-4 py-3.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {withdrawLoading ? (
+                <>
+                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {text.processing}
+                </>
+              ) : (
+                text.withdraw
+              )}
+            </button>
           </div>
         </div>
       )}

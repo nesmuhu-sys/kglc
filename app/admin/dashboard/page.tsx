@@ -12,30 +12,45 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) { router.push('/'); return }
+    if (!token) { 
+      router.push('/')
+      setLoading(false)
+      return
+    }
 
-    // Check if admin
-    fetch('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.user?.isAdmin) {
+    const fetchData = async () => {
+      try {
+        // Check admin status
+        const meRes = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const meData = await meRes.json()
+        
+        if (!meData.user?.isAdmin) {
           router.push('/dashboard')
+          setLoading(false)
           return
         }
-        // Fetch stats
-        return Promise.all([
-          fetch('/api/admin/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-          fetch('/api/admin/withdrawals?status=pending', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
+
+        // Fetch stats and withdrawals in parallel
+        const [statsRes, withdrawalsRes] = await Promise.all([
+          fetch('/api/admin/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/admin/withdrawals?status=pending', { headers: { 'Authorization': `Bearer ${token}` } })
         ])
-      })
-      .then(([statsData, withdrawalsData]) => {
+
+        const statsData = await statsRes.json()
+        const withdrawalsData = await withdrawalsRes.json()
+
         if (statsData.success) setStats(statsData.stats)
         if (withdrawalsData.success) setRecentWithdrawals(withdrawalsData.withdrawals.slice(0, 5))
-      })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false))
+      } catch (error) {
+        console.error('Error loading admin data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [router])
 
   if (loading) {
@@ -75,13 +90,13 @@ export default function AdminDashboard() {
               </div>
               <TrendingUp className="w-8 h-8 text-green-500" />
             </div>
-            <p className="text-sm text-gray-400 mt-1">{stats?.totalDepositsAmount.toLocaleString()} RWF</p>
+            <p className="text-sm text-gray-400 mt-1">{stats?.totalDepositsAmount?.toLocaleString()} RWF</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Withdrawals</p>
-                <p className="text-2xl font-bold text-red-600">{stats?.totalWithdrawalsAmount.toLocaleString()} RWF</p>
+                <p className="text-sm text-gray-500">Total Withdrawn</p>
+                <p className="text-2xl font-bold text-red-600">{stats?.totalWithdrawalsAmount?.toLocaleString() || 0} RWF</p>
               </div>
               <TrendingDown className="w-8 h-8 text-red-500" />
             </div>

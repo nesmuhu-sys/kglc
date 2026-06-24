@@ -35,6 +35,7 @@ const t = {
     active: 'Bakora',
     inactive: 'Ntabakora',
     direct: 'Biturutse kuri wewe',
+    invite: 'Tumira',
     indirect: 'Biturutse kuri abo watumiye',
     buyLevel: 'Gura Urwego',
     yourLevel: 'Urwego rwawe',
@@ -112,6 +113,7 @@ const t = {
     active: 'Active',
     inactive: 'Inactive',
     direct: 'Direct',
+    invite: 'Invite',
     indirect: 'Indirect',
     buyLevel: 'Buy Level',
     yourLevel: 'Your Level',
@@ -200,7 +202,13 @@ const BRAND_LOGOS = [
   'airbnb.com', 'dropbox.com', 'slack.com', 'zoom.us',
 ]
 
-const AppLogo = ({ name, domain, className = 'w-8 h-8' }) => {
+interface AppLogoProps {
+  name: string
+  domain: string
+  className?: string
+}
+
+const AppLogo = ({ name, domain, className = 'w-8 h-8' }: AppLogoProps) => {
   const [error, setError] = useState(false)
   return (
     <div className={`flex items-center justify-center overflow-hidden ${className}`}>
@@ -274,7 +282,7 @@ export default function Dashboard() {
   const [spinResult, setSpinResult] = useState<any>(null)
   const [rotation, setRotation] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const taskTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const taskTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const text = t[lang]
 
@@ -407,7 +415,8 @@ export default function Dashboard() {
         const totalRotation = target + extra * 2 * Math.PI
         setSpinResult(data)
         const duration = 4000, startTime = performance.now(), startRotation = rotation
-        const animate = (time) => {
+        // --- FIX: add : number to time ---
+        const animate = (time: number) => {
           const elapsed = time - startTime
           const progress = Math.min(elapsed / duration, 1)
           const eased = 1 - Math.pow(1 - progress, 3)
@@ -458,7 +467,7 @@ export default function Dashboard() {
     return filtered[Math.floor(Math.random() * filtered.length)]
   }
 
-  const handleGetTask = (task) => {
+  const handleGetTask = (task: any) => {
     if (tasksRemaining <= 0) {
       alert(text.noTasks)
       return
@@ -545,14 +554,14 @@ export default function Dashboard() {
   }
 
   // Copy handler
-  const handleCopy = (text) => {
+  const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   // Buy level
-  const handleBuyLevel = async (levelNumber) => {
+  const handleBuyLevel = async (levelNumber: number) => {
     setBuyError('')
     const level = levels.find(l => l.level === levelNumber)
     if (!level) { setBuyError('Level not found'); return }
@@ -585,8 +594,8 @@ export default function Dashboard() {
       } else {
         setBuyError(data.error || 'Purchase failed')
       }
-    } catch (error) {
-      setBuyError(error.message || 'Error purchasing level')
+    } catch (error: unknown) {
+      setBuyError(error instanceof Error ? error.message : 'Error purchasing level')
     } finally {
       setBuyLoading(false)
     }
@@ -638,8 +647,8 @@ export default function Dashboard() {
 
       // Redirect to RwandaPay payment page
       window.location.href = data.data.payment_url
-    } catch (error: any) {
-      setDepositError(error.message)
+    } catch (error: unknown) {
+      setDepositError(error instanceof Error ? error.message : 'Deposit failed')
       setDepositLoading(false)
     }
   }
@@ -701,8 +710,8 @@ export default function Dashboard() {
       setWithdrawName('')
       setWithdrawPhone('')
       refreshData()
-    } catch (error: any) {
-      setWithdrawError(error.message)
+    } catch (error: unknown) {
+      setWithdrawError(error instanceof Error ? error.message : 'Withdrawal failed')
       setWithdrawLoading(false)
     }
   }
@@ -906,7 +915,7 @@ export default function Dashboard() {
               <h3 className="font-bold text-gray-900 mb-2">{text.level}</h3>
               <div className="flex justify-between items-center"><span>L{level}</span><span className={`px-3 py-1 rounded-full text-xs font-medium ${isActive ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{isActive ? text.active : text.inactive}</span></div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-2"><div className="bg-purple-600 h-2 rounded-full" style={{ width: `${level ? 20 : 0}%` }}></div></div>
-              <p className="text-xs text-gray-400 mt-1">{text.daysLeft}: {levelExpiry ? Math.ceil((new Date(levelExpiry) - new Date()) / (1000*60*60*24)) : 'N/A'} days</p>
+              <p className="text-xs text-gray-400 mt-1">{text.daysLeft}: {levelExpiry ? Math.ceil((new Date(levelExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 'N/A'} days</p>
             </div>
           </div>
         )}

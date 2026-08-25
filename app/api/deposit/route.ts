@@ -7,7 +7,20 @@ import crypto from 'crypto'
 const RWANDAPAY_BASE_URL = 'https://pay.rwandapay.rw/api/v1'
 const PUBLIC_KEY = process.env.RWANDAPAY_PUBLIC_KEY!
 const SECRET_KEY = process.env.RWANDAPAY_SECRET_KEY!
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
+
+function getAppBaseUrl(request: NextRequest) {
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || request.nextUrl.origin || 'https://kglcash.xyz').replace(/\/$/, '')
+}
+
+function getGatewayError(result: unknown, status: number) {
+  const payload = result && typeof result === 'object' ? result as Record<string, unknown> : {}
+  const error = payload.error
+  const errorDetails = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+  const rawMessage = payload.message ?? (typeof error === 'string' ? error : errorDetails.message)
+  const message = typeof rawMessage === 'string' ? rawMessage : `Payment init failed (${status || 'unknown'})`
+  const code = typeof errorDetails.code === 'string' ? errorDetails.code : undefined
+  return code ? `RwandaPay ${code}: ${message}` : message
+}
 
 function generateTxRef(): string {
   return `DEP-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
@@ -149,6 +162,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const appBaseUrl = getAppBaseUrl(request)
+    let appUrl: URL
+    try {
+      appUrl = new URL(appBaseUrl)
+    } catch {
+      return NextResponse.json({ error: 'Payment configuration error: NEXT_PUBLIC_APP_URL must be a valid public HTTPS URL.' }, { status: 500 })
+    }
+
+    if (appUrl.protocol !== 'https:' || appUrl.hostname === 'localhost' || appUrl.hostname === '127.0.0.1') {
+      return NextResponse.json({ error: 'Payment configuration error: set NEXT_PUBLIC_APP_URL to your deployed public HTTPS domain before using live RwandaPay keys.' }, { status: 500 })
+    }
+
     const paymentData = {
       amount,
       tx_ref: txRef,
@@ -158,8 +183,9 @@ export async function POST(request: NextRequest) {
         email: user.email || `${user.phone}@kglc.com`,
         phone,
       },
-      redirect_url: `${APP_URL}/deposit-callback?reference=${txRef}`,
-      webhook_url: `${APP_URL}/api/webhook/deposit`,
+      redirect_url: `${appBaseUrl}/deposit-callback?reference=${txRef}`,
+      // RwandaPay returns its own payment reference, so retain our reference in the callback URL.
+      webhook_url: `${appBaseUrl}/api/webhook/deposit?reference=${encodeURIComponent(txRef)}`,
       description: `Deposit to KGLC account`,
       meta: { user_id: user._id.toString(), transaction_id: transaction._id.toString() },
     }
@@ -168,38 +194,44 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Idempotency-Key': txRef,
         'X-Public-Key': PUBLIC_KEY,
         'X-Secret-Key': SECRET_KEY,
       },
       body: JSON.stringify(paymentData),
     })
 
-    const result = await response.json()
+    const result = await response.json().catch(() => ({}))
+    const paymentUrl = result?.data?.payment_url ?? result?.payment_url ?? result?.data?.checkout_url
+    const sessionId = result?.data?.session_id ?? result?.session_id
 
-    if (!result.success) {
+    if (!response.ok || result?.success === false || !paymentUrl) {
+      const errorMessage = getGatewayError(result, response.status)
       transaction.status = 'failed'
-      transaction.metadata = { ...transaction.metadata, error: result.message }
+      transaction.metadata = { ...transaction.metadata, error: errorMessage, gateway_response: result }
       await transaction.save()
-      return NextResponse.json({ error: result.message || 'Payment init failed' }, { status: 400 })
+      console.error('RwandaPay initialization failed', { status: response.status, result })
+      return NextResponse.json({ error: errorMessage }, { status: response.ok ? 400 : response.status || 400 })
     }
 
     transaction.metadata = {
       ...transaction.metadata,
-      session_id: result.data.session_id,
-      payment_url: result.data.payment_url,
+      session_id: sessionId,
+      payment_url: paymentUrl,
     }
     await transaction.save()
 
-    // Start polling
-    pollPaymentStatus(txRef, transaction._id.toString())
+    // RwandaPay confirms payment through the signed webhook. Its verification endpoint expects
+    // RwandaPay's payment reference, not this merchant tx_ref, so do not poll it with txRef.
 
     return NextResponse.json({
       success: true,
       message: 'Deposit initiated',
       data: {
         reference: txRef,
-        payment_url: result.data.payment_url,
-        session_id: result.data.session_id,
+        payment_url: paymentUrl,
+        session_id: sessionId,
         expires_in: '2 minutes',
         fee,
         net_amount: netAmount,

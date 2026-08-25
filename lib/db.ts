@@ -1,13 +1,13 @@
 import mongoose from 'mongoose'
 
-const MONGODB_URI = process.env.MONGODB_URI!
-
-if (!MONGODB_URI) {
-  throw new Error('❌ MONGODB_URI is not defined in .env.local')
-}
+const MONGODB_URI = process.env.MONGODB_URI
 
 // Simple connection - no caching for now
 export async function connectDB() {
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI is not configured')
+  }
+
   console.log('🔗 Connecting to MongoDB from Next.js...')
   
   // If already connected, return

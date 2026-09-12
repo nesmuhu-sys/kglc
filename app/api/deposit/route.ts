@@ -5,8 +5,12 @@ import { verifyToken } from '@/lib/auth'
 import crypto from 'crypto'
 
 const RWANDAPAY_BASE_URL = 'https://pay.rwandapay.rw/api/v1'
-const PUBLIC_KEY = process.env.RWANDAPAY_PUBLIC_KEY!
-const SECRET_KEY = process.env.RWANDAPAY_SECRET_KEY!
+const PUBLIC_KEY = process.env.RWANDAPAY_PUBLIC_KEY ?? ''
+const SECRET_KEY = process.env.RWANDAPAY_SECRET_KEY ?? ''
+
+if (!PUBLIC_KEY || !SECRET_KEY) {
+  throw new Error('RwandaPay credentials are not configured. Set RWANDAPAY_PUBLIC_KEY and RWANDAPAY_SECRET_KEY.')
+}
 
 function getAppBaseUrl(request: NextRequest) {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || request.nextUrl.origin || 'https://kglcash.xyz').replace(/\/$/, '')

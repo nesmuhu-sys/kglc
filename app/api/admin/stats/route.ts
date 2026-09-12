@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const totalUsers = await User.countDocuments()
     const pendingWithdrawals = await Transaction.countDocuments({ type: 'withdrawal', status: 'pending' })
     const totalDeposits = await Transaction.countDocuments({ type: 'deposit', status: 'completed' })
-    
+
     const depositAgg = await Transaction.aggregate([
       { $match: { type: 'deposit', status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }

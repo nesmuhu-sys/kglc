@@ -1,7 +1,7 @@
 // middleware.ts
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/auth'
+import { verifyEdgeToken } from '@/lib/edge-auth'
 
 export async function middleware(req: NextRequest) {
   const token = req.headers.get('authorization')?.split(' ')[1] || 
@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
-  const decoded = verifyToken(token)
+  const decoded = await verifyEdgeToken(token)
   if (!decoded) {
     if (req.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
@@ -31,19 +31,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
-  // For admin routes, check if user is admin
-  if (req.nextUrl.pathname.startsWith('/admin')) {
-    const { connectDB } = await import('@/lib/db')
-    const { User } = await import('@/lib/models')
-    await connectDB()
-    const user = await User.findById(decoded.id)
-    if (!user || !user.isAdmin) {
-      if (req.nextUrl.pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-      }
-      return NextResponse.redirect(new URL('/dashboard', req.url))
-    }
-  }
 
   return NextResponse.next()
 }

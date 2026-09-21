@@ -1,12 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle, XCircle, Clock, AlertCircle, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react'
 
 export default function AdminWithdrawals() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [withdrawals, setWithdrawals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('pending')
@@ -14,61 +13,86 @@ export default function AdminWithdrawals() {
   const [actionLoading, setActionLoading] = useState(false)
   const [adminNotes, setAdminNotes] = useState('')
 
-  const fetchWithdrawals = async (status = statusFilter) => {
-    const token = localStorage.getItem('token')
-    const res = await fetch(`/api/admin/withdrawals?status=${status}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    const data = await res.json()
-    if (data.success) {
-      setWithdrawals(data.withdrawals)
-    }
-    setLoading(false)
-  }
+  const fetchWithdrawals = useCallback(
+    async (status = statusFilter) => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        router.push('/')
+        return
+      }
+
+      try {
+        const res = await fetch(`/api/admin/withdrawals?status=${status}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const data = await res.json()
+
+        if (data.success) {
+          setWithdrawals(data.withdrawals || [])
+        }
+      } catch (error) {
+        console.error('Failed to load withdrawals', error)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [router, statusFilter]
+  )
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) { router.push('/'); return }
-    // Check admin
+    if (!token) {
+      router.push('/')
+      return
+    }
+
     fetch('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` }
     })
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (!data.user?.isAdmin) {
           router.push('/dashboard')
           return
         }
-        fetchWithdrawals()
+
+        fetchWithdrawals(statusFilter)
       })
       .catch(() => router.push('/'))
-  }, [])
+  }, [fetchWithdrawals, router, statusFilter])
 
   const handleAction = async (transactionId: string, action: string) => {
     setActionLoading(true)
     const token = localStorage.getItem('token')
-    const res = await fetch('/api/admin/withdrawals', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        transactionId,
-        action,
-        adminNotes: adminNotes || `${action}ed by admin`
+
+    try {
+      const res = await fetch('/api/admin/withdrawals', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transactionId,
+          action,
+          adminNotes: adminNotes || `${action}ed by admin`
+        })
       })
-    })
-    const data = await res.json()
-    if (data.success) {
-      // Refresh list
-      fetchWithdrawals(statusFilter)
-      setSelected(null)
-      setAdminNotes('')
-    } else {
-      alert(data.error || 'Action failed')
+
+      const data = await res.json()
+      if (data.success) {
+        fetchWithdrawals(statusFilter)
+        setSelected(null)
+        setAdminNotes('')
+      } else {
+        alert(data.error || 'Action failed')
+      }
+    } catch (error) {
+      console.error('Withdrawal action failed', error)
+      alert('Action failed')
+    } finally {
+      setActionLoading(false)
     }
-    setActionLoading(false)
   }
 
   return (
